@@ -92,6 +92,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js"></script>
 <script>
 /* ============ CONFIG ============ */
 const CONFIG = {
@@ -102,7 +103,12 @@ const CONFIG = {
   BUSINESS_NAME: "Anytime Plumbing 365",
   LOGO_URL: "",            // optional: a hosted logo URL here replaces the built-in logo
   MIN_STARS_FOR_GOOGLE: 4,
-  REDIRECT_DELAY_MS: 900   // time to let the webhook fire before leaving the page
+  REDIRECT_DELAY_MS: 900,  // time to let the webhook fire before leaving the page
+  // EmailJS: emails low-star feedback + follow-up requests.
+  // Recipients (To + BCC) are set inside the EmailJS template, not here.
+  EMAILJS_PUBLIC_KEY: "YOUR_PUBLIC_KEY",     // Account > General > Public Key
+  EMAILJS_SERVICE_ID: "YOUR_SERVICE_ID",     // Email Services > your service > Service ID
+  EMAILJS_TEMPLATE_ID: "YOUR_TEMPLATE_ID"    // Email Templates > your template > Template ID
 };
 /* ================================ */
 
@@ -126,6 +132,16 @@ if (contact.first_name) $("greet").textContent = `Hi ${contact.first_name}, how 
 function sendToGHL(payload) {
   const body = new URLSearchParams({ ...contact, ...payload, source: "review-page", ts: new Date().toISOString() });
   return fetch(CONFIG.GHL_WEBHOOK_URL, { method: "POST", mode: "no-cors", keepalive: true, body }).catch(() => {});
+}
+
+// Email the feedback via EmailJS. Never throws, so the customer always reaches the thank-you step.
+const emailReady = () => window.emailjs && !CONFIG.EMAILJS_PUBLIC_KEY.startsWith("YOUR_");
+if (emailReady()) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
+
+function sendEmail(params) {
+  if (!emailReady()) return Promise.resolve();
+  return emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, params)
+    .catch(err => console.error("EmailJS send failed:", err));
 }
 
 // Build stars
@@ -191,8 +207,7 @@ $("fb-form").addEventListener("submit", async e => {
     return;
   }
   $("fb-btn").disabled = true; $("fb-btn").textContent = "Sending…";
-  await sendToGHL({
-    event: "feedback",
+  const data = {
     rating: String(rating),
     feedback: $("fb-text").value.trim(),
     callback_requested: wantsCall ? "yes" : "no",
@@ -200,7 +215,23 @@ $("fb-form").addEventListener("submit", async e => {
     followup_job: wantsCall ? fu.job : "",
     followup_phone: wantsCall ? fu.phone : "",
     followup_email: wantsCall ? fu.email : ""
-  });
+  };
+  await Promise.all([
+    sendToGHL({ event: "feedback", ...data }),
+    sendEmail({
+      ...data,
+      business_name: CONFIG.BUSINESS_NAME,
+      contact_first_name: contact.first_name || "(not provided)",
+      contact_email: contact.email || "(not provided)",
+      contact_phone: contact.phone || "(not provided)",
+      followup_details: wantsCall
+        ? `Name: ${fu.name}\nJob: ${fu.job}\nPhone: ${fu.phone || "-"}\nEmail: ${fu.email || "-"}`
+        : "Customer did not request a follow-up.",
+      reply_to: (wantsCall && fu.email) || contact.email || "",
+      submitted_at: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
+      page_url: location.href
+    })
+  ]);
   show("step-done");
 });
 </script>
