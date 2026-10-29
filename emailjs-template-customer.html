@@ -1,0 +1,18 @@
+<!--
+  EmailJS CUSTOMER template (confirmation to the person who left 1–3 stars).
+  Settings:  To Email = {{customer_email}}   From Name = Anytime Plumbing 365   Bcc = (leave empty)
+  Subject:   We've received your feedback – {{business_name}}
+  Content:   paste everything below into the code view.
+-->
+<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#111827;max-width:560px;line-height:1.5">
+  <p>Hi {{customer_name}},</p>
+
+  <p>Thank you for taking the time to share your feedback with {{business_name}}. We've received it, and someone from our team will contact you shortly to understand your concerns and answer any questions.</p>
+
+  <p style="margin:0 0 6px;color:#6b7280">What you told us:</p>
+  <p style="white-space:pre-line;background:#f7f8fa;border-radius:8px;padding:12px;margin:0 0 20px">{{feedback}}</p>
+
+  <p>We appreciate the chance to make this right.</p>
+
+  <p>Warm regards,<br>The {{business_name}} Team</p>
+</div>

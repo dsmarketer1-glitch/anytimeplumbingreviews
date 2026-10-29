@@ -1,7 +1,8 @@
 <!--
-  EmailJS template for the review page.
-  Paste this into EmailJS > Email Templates > your template > Content > "Edit Content" (code view).
-  Subject:  {{rating}}★ feedback from {{contact_first_name}} – {{business_name}}
+  EmailJS INTERNAL template (goes to the team).
+  Settings:  To Email = marketing1@acerodigital.ai   Bcc = team1@acerodigital.ai   Reply To = {{reply_to}}
+  Subject:   New {{rating}}★ feedback – {{business_name}}
+  Content:   paste everything below into the code view.
 -->
 <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#111827;max-width:560px">
   <h2 style="margin:0 0 4px">New {{rating}}★ feedback</h2>
@@ -11,13 +12,9 @@
   <p style="white-space:pre-line;background:#f7f8fa;border-radius:8px;padding:12px;margin:0 0 20px">{{feedback}}</p>
 
   <h3 style="margin:0 0 6px">Follow-up requested: {{callback_requested}}</h3>
-  <p style="white-space:pre-line;margin:0 0 20px">{{followup_details}}</p>
-
-  <h3 style="margin:0 0 6px">Contact from the review link</h3>
   <p style="margin:0 0 20px">
-    Name: {{contact_first_name}}<br>
-    Email: {{contact_email}}<br>
-    Phone: {{contact_phone}}
+    Customer email: {{customer_email}}<br>
+    Phone (from link): {{contact_phone}}
   </p>
 
   <p style="font-size:12px;color:#9ca3af;margin:0">Sent from {{page_url}}</p>

@@ -33,8 +33,6 @@
   .hint { font-size:13px; color:var(--muted); min-height:18px; }
   textarea, input { width:100%; padding:12px; border:1px solid #d1d5db; border-radius:10px; font:inherit; margin-bottom:12px; }
   textarea { min-height:120px; resize:vertical; }
-  label.chk { display:flex; gap:8px; align-items:center; justify-content:flex-start; font-size:14px; color:var(--text); margin-bottom:16px; text-align:left; }
-  label.chk input { width:auto; margin:0; }
   .btn { width:100%; padding:14px; border:0; border-radius:10px; background:var(--brand); color:#fff; font-size:16px; font-weight:600; cursor:pointer; }
   .btn:disabled { opacity:.6; cursor:default; }
   .hidden { display:none; }
@@ -70,16 +68,9 @@
       <h1>Help us make it even better</h1>
       <p>Your ideas go straight to our team and help us improve every visit.</p>
       <form id="fb-form">
+        <input id="fb-email" type="email" placeholder="Your email address" autocomplete="email" required>
         <textarea id="fb-text" placeholder="What's one thing we could do better next time?" required></textarea>
-        <label class="chk"><input type="checkbox" id="fb-call"> I'd like someone to follow up with me</label>
-        <div id="followup" class="hidden">
-          <input id="fu-name" type="text" placeholder="Your name" autocomplete="name">
-          <input id="fu-job" type="text" placeholder="What was the job about? (e.g. kitchen sink repair, 12 Oct)">
-          <input id="fu-phone" type="tel" placeholder="Phone number" autocomplete="tel">
-          <input id="fu-email" type="email" placeholder="Email address" autocomplete="email">
-          <div class="err hidden" id="fu-err">Please add your name, the job, and a phone number or email.</div>
-        </div>
-        <button class="btn" id="fb-btn" type="submit">Share my feedback</button>
+        <button class="btn" id="fb-btn" type="submit" disabled>Share my feedback</button>
       </form>
       <button class="back" id="fb-back" type="button">← Change my rating</button>
     </section>
@@ -87,7 +78,7 @@
     <!-- STEP 3: thanks after feedback -->
     <section id="step-done" class="hidden">
       <h1>Thank you! 🙌</h1>
-      <p>We really appreciate you taking the time. Your feedback helps us get better.</p>
+      <p>We've received your feedback. Someone from our team will contact you shortly to understand your concerns.</p>
     </section>
   </div>
 </div>
@@ -104,11 +95,12 @@ const CONFIG = {
   LOGO_URL: "",            // optional: a hosted logo URL here replaces the built-in logo
   MIN_STARS_FOR_GOOGLE: 4,
   REDIRECT_DELAY_MS: 900,  // time to let the webhook fire before leaving the page
-  // EmailJS: emails low-star feedback + follow-up requests.
-  // Recipients (To + BCC) are set inside the EmailJS template, not here.
-  EMAILJS_PUBLIC_KEY: "gcWlyJpgQ147mvQAI",     // Account > General > Public Key
-  EMAILJS_SERVICE_ID: "service_jh9gl1h",     // Email Services > your service > Service ID
-  EMAILJS_TEMPLATE_ID: "template_ccgwwfx"    // Email Templates > your template > Template ID
+  // EmailJS: low-star feedback sends two emails — one to the team, one confirmation to the customer.
+  // Recipients are set inside each EmailJS template, not here.
+  EMAILJS_PUBLIC_KEY: "gcWlyJpgQ147mvQAI",          // Account > General > Public Key
+  EMAILJS_SERVICE_ID: "service_rvuscem",            // Email Services > your service > Service ID
+  EMAILJS_INTERNAL_TEMPLATE_ID: "template_ccgwwfx", // team email (To marketing1@, BCC team1@)
+  EMAILJS_CUSTOMER_TEMPLATE_ID: "YOUR_CUSTOMER_TEMPLATE_ID" // confirmation (To {{customer_email}})
 };
 /* ================================ */
 
@@ -138,9 +130,9 @@ function sendToGHL(payload) {
 const emailReady = () => window.emailjs && !CONFIG.EMAILJS_PUBLIC_KEY.startsWith("YOUR_");
 if (emailReady()) emailjs.init({ publicKey: CONFIG.EMAILJS_PUBLIC_KEY });
 
-function sendEmail(params) {
-  if (!emailReady()) return Promise.resolve();
-  return emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, params)
+function sendEmail(templateId, params) {
+  if (!emailReady() || templateId.startsWith("YOUR_")) return Promise.resolve();
+  return emailjs.send(CONFIG.EMAILJS_SERVICE_ID, templateId, params)
     .catch(err => console.error("EmailJS send failed:", err));
 }
 
@@ -171,66 +163,48 @@ function choose(n) {
     setTimeout(() => location.replace(CONFIG.GOOGLE_REVIEW_URL), CONFIG.REDIRECT_DELAY_MS);
   } else {
     show("step-feedback");
-    $("fb-text").focus();
+    ($("fb-email").value ? $("fb-text") : $("fb-email")).focus();
   }
 }
 
-// Prefill follow-up fields from the link
-$("fu-name").value = contact.first_name;
-$("fu-phone").value = contact.phone;
-$("fu-email").value = contact.email;
-
-$("fb-call").addEventListener("change", () => {
-  $("followup").classList.toggle("hidden", !$("fb-call").checked);
-  $("fu-err").classList.add("hidden");
-  if ($("fb-call").checked) $("fu-name").focus();
-});
+// Email + feedback are both required; the button stays disabled until both are valid.
+$("fb-email").value = contact.email;
+const formValid = () => $("fb-email").checkValidity() && $("fb-text").value.trim() !== "";
+const updateButton = () => { $("fb-btn").disabled = !formValid(); };
+$("fb-email").addEventListener("input", updateButton);
+$("fb-text").addEventListener("input", updateButton);
+updateButton();
 
 $("fb-back").addEventListener("click", () => {
   rating = 0; paint(0);
-  $("fb-text").value = ""; $("fb-call").checked = false;
-  $("followup").classList.add("hidden"); $("fu-err").classList.add("hidden");
+  $("fb-text").value = ""; updateButton();
   show("step-rate");
 });
 
 $("fb-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const wantsCall = $("fb-call").checked;
-  const fu = {
-    name: $("fu-name").value.trim(),
-    job: $("fu-job").value.trim(),
-    phone: $("fu-phone").value.trim(),
-    email: $("fu-email").value.trim()
-  };
-  if (wantsCall && (!fu.name || !fu.job || (!fu.phone && !fu.email))) {
-    $("fu-err").classList.remove("hidden");
-    return;
-  }
+  if (!formValid()) return;
   $("fb-btn").disabled = true; $("fb-btn").textContent = "Sending…";
+  const email = $("fb-email").value.trim();
   const data = {
     rating: String(rating),
     feedback: $("fb-text").value.trim(),
-    callback_requested: wantsCall ? "yes" : "no",
-    followup_name: wantsCall ? fu.name : "",
-    followup_job: wantsCall ? fu.job : "",
-    followup_phone: wantsCall ? fu.phone : "",
-    followup_email: wantsCall ? fu.email : ""
+    customer_email: email,
+    callback_requested: "Yes"   // every low-star customer is promised a follow-up
+  };
+  const params = {
+    ...data,
+    business_name: CONFIG.BUSINESS_NAME,
+    customer_name: contact.first_name || "there",
+    contact_phone: contact.phone || "(not provided)",
+    reply_to: email,
+    submitted_at: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
+    page_url: location.href
   };
   await Promise.all([
     sendToGHL({ event: "feedback", ...data }),
-    sendEmail({
-      ...data,
-      business_name: CONFIG.BUSINESS_NAME,
-      contact_first_name: contact.first_name || "(not provided)",
-      contact_email: contact.email || "(not provided)",
-      contact_phone: contact.phone || "(not provided)",
-      followup_details: wantsCall
-        ? `Name: ${fu.name}\nJob: ${fu.job}\nPhone: ${fu.phone || "-"}\nEmail: ${fu.email || "-"}`
-        : "Customer did not request a follow-up.",
-      reply_to: (wantsCall && fu.email) || contact.email || "",
-      submitted_at: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
-      page_url: location.href
-    })
+    sendEmail(CONFIG.EMAILJS_INTERNAL_TEMPLATE_ID, params),
+    sendEmail(CONFIG.EMAILJS_CUSTOMER_TEMPLATE_ID, params)
   ]);
   show("step-done");
 });
